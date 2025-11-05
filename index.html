@@ -1,0 +1,160 @@
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>FaghaniCoin — Sections + Smooth Animations</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+  <header>
+    <div class="brand" aria-hidden="true">
+      <div class="logo">FC</div>
+      <div class="title">
+        <div class="name">FaghaniCoin</div>
+        <div class="tag">Created by Mosa</div>
+      </div>
+    </div>
+
+    <div class="top-controls" role="navigation" aria-label="Top controls">
+      <div class="balance" aria-live="polite">
+        <div style="font-size:0.78rem;color:var(--muted)">Balance</div>
+        <div class="val" id="header-balance">0</div>
+      </div>
+      <div class="nav-buttons">
+        <button id="nav-home" class="active" onclick="showSection('home')">Home</button>
+        <button id="nav-upgrades" onclick="showSection('upgrades')">Upgrades</button>
+        <button id="nav-tasks" onclick="showSection('tasks')">Tasks</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+
+      <!-- HOME section -->
+      <div id="home" class="section active" role="region" aria-label="Home section">
+        <div class="grid">
+          <section class="panel">
+            <h3>Overview</h3>
+            <p style="margin-top:8px;color:var(--muted)">Profit / hour: <strong id="profit-val">0</strong></p>
+            <p style="margin-top:6px;color:var(--muted)">Limit: <strong id="limit-info">9000/9000</strong></p>
+
+            <div style="margin-top:12px;color:var(--muted)">Quick upgrades</div>
+            <div id="quick-upgrades" class="upgrades-list" style="margin-top:10px"></div>
+          </section>
+
+          <section class="panel center-col">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+              <div id="bigWrap">
+                <div class="big-circle" id="faghani" role="button" tabindex="0" aria-label="Earn Faghani">
+                  <div>
+                    <div class="label">Faghani</div>
+                    <div class="value" id="coin-count">0</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display:flex;gap:12px;align-items:center;">
+                <div style="font-size:0.95rem;color:var(--muted)">Profit/hour</div>
+                <div style="background:rgba(255,255,255,0.03);padding:6px 10px;border-radius:10px;font-weight:700;">
+                  <span id="profit-per-hour">0</span>
+                </div>
+              </div>
+              <div class="hint">Tip: Press <kbd style="background:rgba(255,255,255,0.03);padding:3px 6px;border-radius:6px;font-weight:700">Space</kbd> or tap the circle</div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h3>Tasks</h3>
+            <p style="margin-top:8px;color:var(--muted)">Daily & extras.</p>
+            <div style="height:12px"></div>
+            <button id="daily-btn" class="btn-buy" onclick="claimDailyReward()">Claim Daily (+500)</button>
+            <div style="height:10px"></div>
+            <button id="video-btn" class="btn-buy" onclick="watchVideoTask()">Watch Video (+500)</button>
+          </section>
+        </div>
+      </div>
+
+      <!-- UPGRADES section -->
+      <div id="upgrades" class="section" role="region" aria-label="Upgrades section">
+        <div class="grid">
+          <section class="panel">
+            <h3>Upgrade Details</h3>
+            <p style="margin-top:8px;color:var(--muted)">Buy cards to increase passive income.</p>
+            <div id="upgrades-list" class="upgrades-list" style="margin-top:12px"></div>
+          </section>
+
+          <section class="panel center-col">
+            <h3 style="color:var(--accent2)">Showcase</h3>
+            <p style="color:var(--muted)">Buy to see animation & confetti.</p>
+            <div style="height:12px"></div>
+            <button class="btn-buy" onclick="demoBuy()">Demo Buy</button>
+          </section>
+
+          <section class="panel">
+            <h3>Stats</h3>
+            <p style="margin-top:8px;color:var(--muted)">Passive income and limits are persistent in your browser.</p>
+          </section>
+        </div>
+      </div>
+
+      <!-- TASKS section -->
+      <div id="tasks" class="section" role="region" aria-label="Tasks section">
+        <div class="grid">
+          <section class="panel">
+            <h3>Daily Log</h3>
+            <p style="margin-top:8px;color:var(--muted)">Daily reward and mini tasks.</p>
+            <div style="height:12px"></div>
+            <button class="btn-buy" onclick="miniTask(100)">Complete Mini Task (+100)</button>
+          </section>
+
+          <section class="panel center-col">
+            <h3 style="color:var(--accent2)">Watch & Earn</h3>
+            <p style="color:var(--muted)">Watch video for coins.</p>
+            <div style="height:12px"></div>
+            <button class="btn-buy" onclick="watchVideoTask()">Watch Video (+500)</button>
+          </section>
+
+          <section class="panel">
+            <h3>History</h3>
+            <p style="margin-top:8px;color:var(--muted)">Recent actions are shown here (live).</p>
+            <div id="history" style="margin-top:10px;color:var(--muted);font-size:0.92rem"></div>
+          </section>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <footer>Good luck with Teacher Faghani.</footer>
+  
+  <script src="app.js"></script>
+
+  <script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyCxRwddi-JmeFlVWphqYkpJLjk8ti9uPGY",
+    authDomain: "faghanicoin.firebaseapp.com",
+    projectId: "faghanicoin",
+    storageBucket: "faghanicoin.firebasestorage.app",
+    messagingSenderId: "872913354745",
+    appId: "1:872913354745:web:2d11bfef149a6abe7f0728",
+    measurementId: "G-6SKDCKR4H2"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
+</body>
+</html>
