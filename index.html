@@ -1,11 +1,11 @@
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>FaghaniCoin — Sections + Smooth Animations</title>
-
+<title>FaghaniCoin — Invite-only Friends</title>
 <link rel="stylesheet" href="style.css">
-
+<script src="https://kit.fontawesome.com/ee47db218d.js" crossorigin="anonymous"></script>
 </head>
 <body>
   <header>
@@ -16,7 +16,6 @@
         <div class="tag">Created by Mosa</div>
       </div>
     </div>
-
     <div class="top-controls" role="navigation" aria-label="Top controls">
       <div class="balance" aria-live="polite">
         <div style="font-size:0.78rem;color:var(--muted)">Balance</div>
@@ -26,25 +25,21 @@
         <button id="nav-home" class="active" onclick="showSection('home')">Home</button>
         <button id="nav-upgrades" onclick="showSection('upgrades')">Upgrades</button>
         <button id="nav-tasks" onclick="showSection('tasks')">Tasks</button>
+        <button id="nav-friends" onclick="showSection('friends')">Friends</button>
       </div>
     </div>
   </header>
-
   <main>
     <div class="container">
-
-      <!-- HOME section -->
+      <!-- HOME -->
       <div id="home" class="section active" role="region" aria-label="Home section">
         <div class="grid">
           <section class="panel">
             <h3>Overview</h3>
             <p style="margin-top:8px;color:var(--muted)">Profit / hour: <strong id="profit-val">0</strong></p>
             <p style="margin-top:6px;color:var(--muted)">Limit: <strong id="limit-info">9000/9000</strong></p>
-
-            <div style="margin-top:12px;color:var(--muted)">Quick upgrades</div>
             <div id="quick-upgrades" class="upgrades-list" style="margin-top:10px"></div>
           </section>
-
           <section class="panel center-col">
             <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
               <div id="bigWrap">
@@ -52,10 +47,10 @@
                   <div>
                     <div class="label">Faghani</div>
                     <div class="value" id="coin-count">0</div>
+                    <div style="font-size:0.9rem;color:var(--muted);margin-top:6px" id="profile-name">Guest</div>
                   </div>
                 </div>
               </div>
-
               <div style="display:flex;gap:12px;align-items:center;">
                 <div style="font-size:0.95rem;color:var(--muted)">Profit/hour</div>
                 <div style="background:rgba(255,255,255,0.03);padding:6px 10px;border-radius:10px;font-weight:700;">
@@ -65,96 +60,107 @@
               <div class="hint">Tip: Press <kbd style="background:rgba(255,255,255,0.03);padding:3px 6px;border-radius:6px;font-weight:700">Space</kbd> or tap the circle</div>
             </div>
           </section>
-
           <section class="panel">
-            <h3>Tasks</h3>
-            <p style="margin-top:8px;color:var(--muted)">Daily & extras.</p>
-            <div style="height:12px"></div>
-            <button id="daily-btn" class="btn-buy" onclick="claimDailyReward()">Claim Daily (+500)</button>
-            <div style="height:10px"></div>
-            <button id="video-btn" class="btn-buy" onclick="watchVideoTask()">Watch Video (+500)</button>
+            <h3>Follow us.</h3>
+            <a href="https://www.instagram.com/13mohammadah/" target="_blank" style="text-decoration: none;"><p style="margin-top:8px;color:var(--muted)">Instagram <i class="fa-brands fa-instagram"></i></p></a>
+            <a href="https://youtube.com/@Kachalo9782" target="_blank" style="text-decoration: none;"><p style="margin-top:8px;color:var(--muted)">YouTube <i class="fa-brands fa-youtube"></i></p></a>
+            <a href="https://t.me/hhm13" target="_blank" style="text-decoration: none;"><p style="margin-top:8px;color:var(--muted)">Telegram <i class="fa-brands fa-telegram"></i></p></a>
           </section>
         </div>
       </div>
 
-      <!-- UPGRADES section -->
+      <!-- UPGRADES -->
       <div id="upgrades" class="section" role="region" aria-label="Upgrades section">
         <div class="grid">
           <section class="panel">
             <h3>Upgrade Details</h3>
-            <p style="margin-top:8px;color:var(--muted)">Buy cards to increase passive income.</p>
+            <p style="margin-top:8px;color:var(--muted)">Buy cards to increase passive income. Some special upgrades unlock when you bring friends into the game.</p>
             <div id="upgrades-list" class="upgrades-list" style="margin-top:12px"></div>
           </section>
-
           <section class="panel center-col">
-            <h3 style="color:var(--accent2)">Showcase</h3>
-            <p style="color:var(--muted)">Buy to see animation & confetti.</p>
+            <h3 style="color:var(--accent2)">Waste Your Coins</h3>
+            <p style="color:var(--muted)">It will waste a few of your coins</p>
             <div style="height:12px"></div>
-            <button class="btn-buy" onclick="demoBuy()">Demo Buy</button>
+            <button class="btn" onclick="demoBuy()">Waste Faghani</button>
           </section>
-
           <section class="panel">
-            <h3>Stats</h3>
-            <p style="margin-top:8px;color:var(--muted)">Passive income and limits are persistent in your browser.</p>
+            <h3>About Faghani</h3>
+            <p style="margin-top:8px;color:var(--muted)"><strong>Have you heard about Faghani?</strong><br>He is an <em>Arabic teacher</em> who has a great deal of fans among students. Have a good journey with FaghaniCoin</p>
           </section>
         </div>
       </div>
 
-      <!-- TASKS section -->
+      <!-- TASKS -->
       <div id="tasks" class="section" role="region" aria-label="Tasks section">
         <div class="grid">
           <section class="panel">
             <h3>Daily Log</h3>
-            <p style="margin-top:8px;color:var(--muted)">Daily reward and mini tasks.</p>
+            <p style="margin-top:8px;color:var(--muted)">Daily reward</p>
             <div style="height:12px"></div>
-            <button class="btn-buy" onclick="miniTask(100)">Complete Mini Task (+100)</button>
+            <button id="daily-btn" class="btn" onclick="claimDailyReward()">Claim Daily (+500)</button>
           </section>
-
           <section class="panel center-col">
             <h3 style="color:var(--accent2)">Watch & Earn</h3>
             <p style="color:var(--muted)">Watch video for coins.</p>
             <div style="height:12px"></div>
-            <button class="btn-buy" onclick="watchVideoTask()">Watch Video (+500)</button>
+            <button id="video-btn" class="btn" onclick="watchVideoTask()">Watch Video (+500)</button>
           </section>
-
           <section class="panel">
             <h3>History</h3>
-            <p style="margin-top:8px;color:var(--muted)">Recent actions are shown here (live).</p>
+            <p style="margin-top:8px;color:var(--muted)">Recent actions are shown here.</p>
             <div id="history" style="margin-top:10px;color:var(--muted);font-size:0.92rem"></div>
           </section>
         </div>
       </div>
 
+      <!-- FRIENDS (invite-only) -->
+      <div id="friends" class="section" role="region" aria-label="Friends section">
+        <div class="grid">
+          <section class="panel">
+            <h3>Friends (invite-only)</h3>
+            <p style="margin-top:8px;color:var(--muted)">Users cannot add friends manually. Friends are created only when someone opens the game using your invite link.</p>
+
+            <div style="margin-top:10px;margin-bottom:8px">
+              <label class="small">Profile name</label><br/>
+              <input id="profile-input" placeholder="Your name" />
+              <button class="btn" style="margin-left:8px" onclick="updateProfileFromUI()">Save</button>
+            </div>
+
+            <div style="margin-top:12px;color:var(--muted)">Total friends: <strong id="friends-count">0</strong></div>
+            <div class="friend-list" id="friend-list"></div>
+
+            <hr style="margin:12px 0;border-color:rgba(255,255,255,0.03)" />
+
+            <h4>Invite</h4>
+            <div class="small" style="margin-bottom:8px">Your invite link — share it. When a new user opens the game with this link, you will be awarded <strong>+1000 coins</strong>.</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input id="invite-link" readonly style="flex:1" />
+              <button class="btn" onclick="copyInvite()">Copy</button>
+            </div>
+            <div style="margin-top:10px" class="small">Your id: <code id="invite-id" style="padding:6px;border-radius:6px;background:rgba(255,255,255,0.02);font-family:ui-monospace,monospace"></code></div>
+            <div style="margin-top:12px;color:var(--muted);font-size:0.85rem">Important: for cross-device crediting you must configure a backend (JSONBin or your server). See top of the script.</div>
+          </section>
+
+          <section class="panel center-col">
+            <h3 style="color:var(--accent2)">Invite Progress</h3>
+            <p style="color:var(--muted)">Unlock special upgrades by bringing friends:</p>
+            <ol style="text-align:left;color:var(--muted)">
+              <li>1 friend → Unlocks upgrade A</li>
+              <li>2 friends → Unlocks upgrade B</li>
+              <li>3 friends → Unlocks upgrades C + D</li>
+            </ol>
+            <div style="height:8px"></div>
+            <div id="friend-unlock-status" style="color:var(--muted)"></div>
+          </section>
+
+          
+        </div>
+      </div>
+
     </div>
   </main>
-
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <footer>Good luck with Teacher Faghani.</footer>
-  
   <script src="app.js"></script>
-
-  <script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyCxRwddi-JmeFlVWphqYkpJLjk8ti9uPGY",
-    authDomain: "faghanicoin.firebaseapp.com",
-    projectId: "faghanicoin",
-    storageBucket: "faghanicoin.firebasestorage.app",
-    messagingSenderId: "872913354745",
-    appId: "1:872913354745:web:2d11bfef149a6abe7f0728",
-    measurementId: "G-6SKDCKR4H2"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
 </body>
 </html>
