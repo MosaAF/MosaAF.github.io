@@ -4,7 +4,6 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>FaghaniCoin — Invite-only Friends</title>
-<link rel="stylesheet" href="style.css">
 <script src="https://kit.fontawesome.com/ee47db218d.js" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -13,13 +12,16 @@
       <div class="logo">FC</div>
       <div class="title">
         <div class="name">FaghaniCoin</div>
-        <div class="tag">Created by Mosa</div>
+        <div class="tag">Created by Mosa — Invite-only friends</div>
       </div>
     </div>
     <div class="top-controls" role="navigation" aria-label="Top controls">
       <div class="balance" aria-live="polite">
         <div style="font-size:0.78rem;color:var(--muted)">Balance</div>
         <div class="val" id="header-balance">0</div>
+      </div>
+      <div style="margin-left:12px">
+        <div id="telegram-info" class="small" style="text-align:right"></div>
       </div>
       <div class="nav-buttons">
         <button id="nav-home" class="active" onclick="showSection('home')">Home</button>
@@ -126,19 +128,21 @@
               <button class="btn" style="margin-left:8px" onclick="updateProfileFromUI()">Save</button>
             </div>
 
+            <div id="pending-area" style="margin-top:8px"></div>
+
             <div style="margin-top:12px;color:var(--muted)">Total friends: <strong id="friends-count">0</strong></div>
             <div class="friend-list" id="friend-list"></div>
 
             <hr style="margin:12px 0;border-color:rgba(255,255,255,0.03)" />
 
             <h4>Invite</h4>
-            <div class="small" style="margin-bottom:8px">Your invite link — share it. When a new user opens the game with this link, you will be awarded <strong>+1000 coins</strong>.</div>
+            <div class="small" style="margin-bottom:8px">Your invite link — share it. When a new user opens the game with this link, the invited user gets <strong>+500</strong> coins immediately and you (the inviter) receive a pending reward of <strong>+1000</strong> which you can collect when you next open the app.</div>
             <div style="display:flex;gap:8px;align-items:center">
               <input id="invite-link" readonly style="flex:1" />
               <button class="btn" onclick="copyInvite()">Copy</button>
             </div>
             <div style="margin-top:10px" class="small">Your id: <code id="invite-id" style="padding:6px;border-radius:6px;background:rgba(255,255,255,0.02);font-family:ui-monospace,monospace"></code></div>
-            <div style="margin-top:12px;color:var(--muted);font-size:0.85rem">Important: for cross-device crediting you must configure a backend (JSONBin or your server). See top of the script.</div>
+            <div style="margin-top:12px;color:var(--muted);font-size:0.85rem">Important: for cross-device crediting you must configure a backend (JSONBin). See top of the script.</div>
           </section>
 
           <section class="panel center-col">
@@ -153,7 +157,11 @@
             <div id="friend-unlock-status" style="color:var(--muted)"></div>
           </section>
 
-          
+          <section class="panel">
+            <h3>AI Competition</h3>
+            <p style="margin-top:8px;color:var(--muted)">This is an AI competition — last match winner: <strong>ChatGPT</strong></p>
+            <p style="margin-top:8px;color:var(--muted)">Invite more friends to climb the leaderboard.</p>
+          </section>
         </div>
       </div>
 
@@ -161,6 +169,8 @@
   </main>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <footer>Good luck with Teacher Faghani.</footer>
-  <script src="app.js"></script>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
 </body>
 </html>
