@@ -222,7 +222,7 @@ function ensureProfile(){
   profileNameEl.textContent = profile.name || 'Guest';
   inviteIdEl.textContent = profile.id;
   // show Telegram-friendly invite link (we show both forms)
-  inviteLinkEl.value = buildInviteUrl(profile.id) + '  (or: ' + buildTelegramDeepLink(profile.id) + ')';
+  inviteLinkEl.value = buildTelegramDeepLink(profile.id) + '  (or: ' + buildInviteUrl(profile.id) + ')';
 }
 
 function updateProfileFromUI(){
@@ -232,12 +232,12 @@ function updateProfileFromUI(){
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   profileNameEl.textContent = profile.name;
   inviteIdEl.textContent = profile.id;
-  inviteLinkEl.value = buildInviteUrl(profile.id) + '  (or: ' + buildTelegramDeepLink(profile.id) + ')';
+  inviteLinkEl.value = buildTelegramDeepLink(profile.id) + '  (or: ' + buildInviteUrl(profile.id) + ')';
   showToast('Profile saved');
   if(localState){ localState.profileName = profile.name; saveLocalState(); updateDisplay(); }
 }
 
-/* ===== Invite Friends button (robust) ===== */
+/* ===== Invite Friends button (robust & fixed) ===== */
 (function setupInviteButton(){
   const btn = document.getElementById('invite-friends-btn');
   if(!btn) return;
@@ -245,48 +245,44 @@ function updateProfileFromUI(){
   btn.addEventListener('click', (e) => {
     e.preventDefault();
 
-    // target URLs:
+    // build the two main forms: startapp (tries to open webapp) and deep link for fallback
     const startappLink = `https://t.me/${BOT_USERNAME}/startapp?startapp=${encodeURIComponent(profile.id)}`;
-    const startDeep = `https://t.me/${BOT_USERNAME}?start=ref_${encodeURIComponent(profile.id)}`;
+    const deepLink = `https://t.me/${BOT_USERNAME}?start=ref_${encodeURIComponent(profile.id)}`;
     const tgResolve = `tg://resolve?domain=${BOT_USERNAME}&start=ref_${encodeURIComponent(profile.id)}`;
 
-    // Message to share — include startapp link (best effort)
+    // share text includes startapp (best for Telegram clients)
     const shareText = `🎮 Join me in FaghaniCoin and get +500 coins! Play in Telegram: ${startappLink}`;
 
-    // Telegram "share" URL that opens the contact chooser / forward UI:
+    // Telegram "share" URL that opens the forward UI
     const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(startappLink)}&text=${encodeURIComponent(shareText)}`;
 
     try {
-      // If inside Telegram WebApp: try to open link via the WebApp API (opens inside Telegram)
+      // If inside Telegram WebApp: open the Telegram share URL via WebApp API (this will open forward UI)
       if (window.Telegram && window.Telegram.WebApp) {
         const tgLocal = window.Telegram.WebApp;
-        // prefer openLink (supported in many clients)
         if (typeof tgLocal.openLink === 'function') {
-          tgLocal.openLink(startappLink);
+          tgLocal.openLink(tgShareUrl);
           return;
         }
-        // some environments expose openTelegramLink
         if (typeof tgLocal.openTelegramLink === 'function') {
-          tgLocal.openTelegramLink(startappLink);
+          tgLocal.openTelegramLink(tgShareUrl);
           return;
         }
       }
 
-      // Native mobile share when available (user picks contact/app)
+      // Use native share (mobile browsers)
       if (navigator.share) {
         navigator.share({ title: 'FaghaniCoin', text: shareText, url: startappLink })
           .catch(() => window.open(tgShareUrl, '_blank', 'noopener'));
         return;
       }
 
-      // Desktop/mobile fallback: open Telegram's share page (will open Telegram app or web)
+      // Fallback: open Telegram share page in new tab (user picks contact)
       window.open(tgShareUrl, '_blank', 'noopener');
-
-      // If popups blocked, user still can copy the link and send it manually.
     } catch (err) {
-      // final fallback: try tg://resolve (mobile)
+      // final fallback: try to open Telegram app directly (mobile) or deep link:
       try { window.open(tgResolve, '_blank', 'noopener'); }
-      catch(e){ window.open(startDeep, '_blank', 'noopener'); }
+      catch(e){ window.open(deepLink, '_blank', 'noopener'); }
     }
   });
 })();
@@ -300,14 +296,15 @@ function buildTelegramDeepLink(id){
   // fallback deep link that opens the bot /start; bot should handle forwarding to web app where applicable
   return `https://t.me/${BOT_USERNAME}?start=ref_${encodeURIComponent(id)}`;
 }
-function copyInvite(){ 
-  // try modern clipboard first
-  const toCopy = buildInviteUrl(profile.id);
+function copyInvite(){
+  // copy the deep-link (most reliable for referrals)
+  const deepLink = buildTelegramDeepLink(profile.id);
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(toCopy).then(()=> showToast('Invite link copied')).catch(()=> fallbackCopy());
+    navigator.clipboard.writeText(deepLink).then(()=> showToast('Invite link copied')).catch(()=> fallbackCopy());
   } else fallbackCopy();
 
   function fallbackCopy(){
+    inviteLinkEl.value = deepLink;
     inviteLinkEl.select();
     try{ document.execCommand('copy'); showToast('Invite link copied'); }catch(e){ showToast('Copy failed — select and copy manually', {danger:true}); }
   }
@@ -786,6 +783,6 @@ function demoBuy(){ if(localState.coins < 10) { showToast('Need at least 10 coin
   // periodic UI refresh
   setInterval(updateDisplay, 3000);
 
-  // Show invite link in UI (Telegram-friendly deep link)
-  inviteLinkEl.value = buildInviteUrl(profile.id) + '  (or: ' + buildTelegramDeepLink(profile.id) + ')';
+  // Show invite link in UI (Telegram-friendly deep link first)
+  inviteLinkEl.value = buildTelegramDeepLink(profile.id) + '  (or: ' + buildInviteUrl(profile.id) + ')';
 })();
