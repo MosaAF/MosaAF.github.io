@@ -1,4 +1,4 @@
-/* ======= CONFIG (replace with your values if needed) ======= */
+ /* ======= CONFIG (replace with your values if needed) ======= */
 const BIN_ID = "";
 const JSONBIN_KEY = "";
 const BOT_USERNAME = 'FaghaniCoin_bot';
@@ -241,46 +241,60 @@ function updateProfileFromUI(){
    - share message contains the "startapp" link (best chance to open web app)
    - fallback uses t.me/<bot>?start=ref_<id> and tg://resolve
 */
+/* ===== Invite Friends button (robust) ===== */
 (function setupInviteButton(){
   const btn = document.getElementById('invite-friends-btn');
   if(!btn) return;
+
   btn.addEventListener('click', (e) => {
     e.preventDefault();
 
-    // prefer startapp link (opens the bot's webapp when possible)
+    // target URLs:
     const startappLink = `https://t.me/${BOT_USERNAME}/startapp?startapp=${encodeURIComponent(profile.id)}`;
     const startDeep = `https://t.me/${BOT_USERNAME}?start=ref_${encodeURIComponent(profile.id)}`;
     const tgResolve = `tg://resolve?domain=${BOT_USERNAME}&start=ref_${encodeURIComponent(profile.id)}`;
 
-    const shareText = `🎮 Join me in FaghaniCoin and get +500 coins! Play now: ${startappLink}`;
+    // Message to share — include startapp link (best effort)
+    const shareText = `🎮 Join me in FaghaniCoin and get +500 coins! Play in Telegram: ${startappLink}`;
 
-    // Telegram share URL that opens the forward UI and includes the startapp link in the message
+    // Telegram "share" URL that opens the contact chooser / forward UI:
     const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(startappLink)}&text=${encodeURIComponent(shareText)}`;
 
     try {
-      // if inside Telegram WebApp, try to open directly
-      if (tg && typeof tg.openLink === 'function') {
-        // open startapp link inside the app if possible
-        tg.openLink(startappLink);
-        return;
+      // If inside Telegram WebApp: try to open link via the WebApp API (opens inside Telegram)
+      if (window.Telegram && window.Telegram.WebApp) {
+        const tg = window.Telegram.WebApp;
+        // prefer openLink (supported in many clients)
+        if (typeof tg.openLink === 'function') {
+          tg.openLink(startappLink);
+          return;
+        }
+        // some environments expose openTelegramLink
+        if (typeof tg.openTelegramLink === 'function') {
+          tg.openTelegramLink(startappLink);
+          return;
+        }
       }
-      // native share on mobile
+
+      // Native mobile share when available (user picks contact/app)
       if (navigator.share) {
-        navigator.share({ title: 'FaghaniCoin', text: shareText, url: startappLink }).catch(()=> {
-          window.open(tgShareUrl, '_blank', 'noopener');
-        });
+        navigator.share({ title: 'FaghaniCoin', text: shareText, url: startappLink })
+          .catch(() => window.open(tgShareUrl, '_blank', 'noopener'));
         return;
       }
 
-      // desktop/mobile fallback: open Telegram share URL (user will pick contacts)
+      // Desktop/mobile fallback: open Telegram's share page (will open Telegram app or web)
       window.open(tgShareUrl, '_blank', 'noopener');
 
+      // If popups blocked, user still can copy the link and send it manually.
     } catch (err) {
-      // last fallback: open tg://resolve (mobile)
-      try { window.open(tgResolve, '_blank', 'noopener'); } catch(e){ window.open(startDeep, '_blank', 'noopener'); }
+      // final fallback: try tg://resolve (mobile Telegram)
+      try { window.open(tgResolve, '_blank', 'noopener'); }
+      catch(e){ window.open(startDeep, '_blank', 'noopener'); }
     }
   });
 })();
+
 
 /* ===== builds: return startapp (preferred) and deep link (fallback) ===== */
 function buildInviteUrl(id){
