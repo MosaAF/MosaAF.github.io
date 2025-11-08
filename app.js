@@ -1,4 +1,4 @@
-/* ======= CONFIG (replace with your values if needed) ======= */
+  /* ======= CONFIG (replace with your values if needed) ======= */
 const BIN_ID = "";
 const JSONBIN_KEY = "";
 const BOT_USERNAME = 'FaghaniCoin_bot';
@@ -287,6 +287,51 @@ function updateProfileFromUI(){
   showToast('Profile saved');
   if(localState){ localState.profileName = profile.name; saveLocalState(); updateDisplay(); }
 }
+
+// ===== Invite Friends button (Telegram share + fallbacks)
+(function setupInviteButton(){
+  const btn = document.getElementById('invite-friends-btn');
+  if(!btn) return;
+
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+
+    // Build invite link (prefer existing helper)
+    const inviteLink = (typeof buildTelegramDeepLink === 'function') ? buildTelegramDeepLink(profile.id) : (location.origin + location.pathname + '?ref=' + encodeURIComponent(profile.id));
+
+    const shareText = `🎮 Join me in FaghaniCoin and get +500 coins! Play now: ${inviteLink}`;
+
+    // Telegram share URL (opens Telegram share/forward UI)
+    const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
+
+    const tgApp = window.Telegram?.WebApp;
+
+    try {
+      // Prefer Telegram WebApp openLink APIs if available
+      if (tgApp && typeof tgApp.openTelegramLink === 'function') {
+        tgApp.openTelegramLink(tgShareUrl);
+        return;
+      } else if (tgApp && typeof tgApp.openLink === 'function') {
+        tgApp.openLink(tgShareUrl);
+        return;
+      }
+
+      // On supporting browsers, use native share (mobile friendly) as an extra fallback
+      if (navigator.share) {
+        navigator.share({ title: 'FaghaniCoin', text: shareText, url: inviteLink })
+          .catch(() => window.open(tgShareUrl, '_blank', 'noopener'));
+        return;
+      }
+
+      // Default fallback: open Telegram share URL (will open Telegram app on mobile)
+      window.open(tgShareUrl, '_blank', 'noopener');
+    } catch (err) {
+      // ultimate fallback
+      window.open(tgShareUrl, '_blank', 'noopener');
+    }
+  });
+})();
+
 
 // Build invite link that opens inside Telegram bot (preferred)
 function buildInviteUrl(id){
