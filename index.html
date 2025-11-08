@@ -138,15 +138,14 @@
 
             <h4>Invite</h4>
             <div class="small" style="margin-bottom:8px">Your invite link — share it. When a new user opens the game with this link, the invited user gets <strong>+500</strong> coins immediately and you (the inviter) receive a pending reward of <strong>+1000</strong> which you can collect when you next open the app.</div>
+            <!-- Replace this block inside your Friends panel -->
             <div style="display:flex;gap:8px;align-items:center">
               <input id="invite-link" readonly style="flex:1" />
               <button class="btn" onclick="copyInvite()">Copy</button>
-              <!-- NEW Invite button (styled like others) -->
-              <button id="invite-friends-btn" class="btn" aria-label="Invite friends via Telegram" title="Invite friends">
-                <i class="fa-solid fa-user-plus" style="margin-right:8px"></i>
-                Invite
-              </button>
-            </div>
+              <!-- contact selector btn for invite new user-->
+              <button id="invite-friends-btn" class="btn"><i class="fa-solid fa-user-plus"></i> Invite</button>
+           </div>
+
             <div style="margin-top:10px" class="small">Your id: <code id="invite-id" style="padding:6px;border-radius:6px;background:rgba(255,255,255,0.02);font-family:ui-monospace,monospace"></code></div>
             <div style="margin-top:12px;color:var(--muted);font-size:0.85rem">...</div>
           </section>
@@ -182,3 +181,4 @@
 <script src="app.js"></script>
 </body>
 </html>
+
