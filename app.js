@@ -1,4 +1,4 @@
- /* ======= CONFIG (replace with your values if needed) ======= */
+/* ======= CONFIG (replace with your values if needed) ======= */
 const BIN_ID = "";
 const JSONBIN_KEY = "";
 const BOT_USERNAME = 'FaghaniCoin_bot';
@@ -81,7 +81,6 @@ async function workerGetUser(id){
     const res = await fetch(url, { method: 'GET' });
     if(res.ok){
       const j = await res.json();
-      // Worker may return object directly or wrapped { profile, state }
       return j;
     }
   }catch(e){ /* continue to fallback */ }
@@ -273,6 +272,7 @@ function ensureProfile(){
   profileInputEl.value = profile.name || '';
   profileNameEl.textContent = profile.name || 'Guest';
   inviteIdEl.textContent = profile.id;
+  // show Telegram-friendly invite link
   inviteLinkEl.value = buildInviteUrl(profile.id);
 }
 
@@ -288,8 +288,15 @@ function updateProfileFromUI(){
   if(localState){ localState.profileName = profile.name; saveLocalState(); updateDisplay(); }
 }
 
-function buildInviteUrl(id){ return location.origin + location.pathname + '?ref=' + encodeURIComponent(id); }
-function buildTelegramDeepLink(id){ return `https://t.me/${BOT_USERNAME}?start=ref_${encodeURIComponent(id)}`; }
+// Build invite link that opens inside Telegram bot (preferred)
+function buildInviteUrl(id){
+  // This link opens the web app inside Telegram (startapp). Works best when shared from outside Telegram.
+  return `https://t.me/${BOT_USERNAME}/startapp?startapp=${encodeURIComponent(id)}`;
+}
+// fallback deep link (alternative form using /?start=ref_<id>)
+function buildTelegramDeepLink(id){
+  return `https://t.me/${BOT_USERNAME}?start=ref_${encodeURIComponent(id)}`;
+}
 function copyInvite(){ inviteLinkEl.select(); try{ document.execCommand('copy'); showToast('Invite link copied'); }catch(e){ showToast('Copy failed — select and copy manually', {danger:true}); } }
 
 /* ======= Local state save/load (now uses per-user put if possible) ======= */
@@ -423,9 +430,7 @@ function updateDisplay(){
   });
 
   const friendCount = (localState.friends || []).length;
-  document.querySelectorAll('.btn-buy').forEach(btn=>{
-    btn.onclick = (e)=> onBuyClick(e);
-  });
+  document.querySelectorAll('.btn-buy').forEach(btn=>{ btn.onclick = (e)=> onBuyClick(e); });
 
   const dailyBtn = document.getElementById('daily-btn');
   if(dailyBtn){
@@ -504,25 +509,45 @@ function watchVideoTask(){ if(localState.videoClaimed){ showToast('Video already
 
 /* ======= Invite acceptance logic (now uses workerProcessInvite) ======= */
 async function tryAcceptInviteFromUrl(){
-  const params = new URLSearchParams(location.search);
-  const rawInviter = (params.get('ref') || '').trim();
-  if(!rawInviter) return;
-  const inviterId = rawInviter;
-  if(inviterId === profile.id){ showToast('You opened your own invite link — no action.'); return; }
-  if(profile.joinedFrom && profile.joinedFrom === inviterId){ showToast('Invite previously accepted', {danger:false}); return; }
+  // Support multiple ways of passing the inviter:
+  // 1) Telegram WebApp start_param (preferred when opened inside Telegram)
+  // 2) URL ?ref=...
+  // 3) URL ?start=ref_<id>
+  let inviterId = null;
 
-  profile.joinedFrom = inviterId;
+  // 1) telegram start_param
+  try{
+    inviterId = tg?.initDataUnsafe?.start_param || null;
+  }catch(e){ inviterId = inviterId || null; }
+
+  // 2) fallback to URL parameters
+  if(!inviterId){
+    const params = new URLSearchParams(location.search);
+    inviterId = (params.get('ref') || params.get('start') || '').trim();
+    if(inviterId && inviterId.startsWith('ref_')) inviterId = inviterId.slice(4);
+    if(!inviterId) inviterId = null;
+  }
+
+  if(!inviterId) return;
+  const inviter = inviterId;
+
+  if(inviter === profile.id){ showToast('You opened your own invite link — no action.'); return; }
+  if(profile.joinedFrom && profile.joinedFrom === inviter){ showToast('Invite previously accepted', {danger:false}); return; }
+
+  profile.joinedFrom = inviter;
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
 
   if(WORKER_URL){
     showToast('Processing invite — contacting backend...');
     try{
-      const res = await workerProcessInvite(inviterId, profile.id, profile.name);
+      const res = await workerProcessInvite(inviter, profile.id, profile.name);
       if(res && res.ok){
-        // If worker returned the invited state (fallback returns invited), merge it
-        const invitedData = res.result?.user || res.invited || null;
-        if(invitedData && invitedData.state){
-          localState = mergeWithDefault(invitedData.state, localState);
+        // Worker invite endpoint returns structure under result or invited/inviter depending on implementation
+        const invitedData = res.result?.invited || res.result?.invited || res.invited || res.result?.user || null;
+        // fallback: res.result may be wrapper; use res.invited as fallback
+        const invitedState = invitedData && (invitedData.state || invitedData);
+        if(invitedState){
+          localState = mergeWithDefault(invitedState.state || invitedState, localState);
           showToast(`You received +${INVITED_AMOUNT} coins for joining via referral!`);
           updateDisplay();
           saveLocalState();
@@ -540,10 +565,10 @@ async function tryAcceptInviteFromUrl(){
   }
 
   // no worker: local-only
-  profile.joinedFrom = inviterId;
+  profile.joinedFrom = inviter;
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   localState.coins = (localState.coins || 0) + INVITED_AMOUNT;
-  localState.history.push(`Joined via ${inviterId} (+${INVITED_AMOUNT})`);
+  localState.history.push(`Joined via ${inviter} (+${INVITED_AMOUNT})`);
   localState.notifications = localState.notifications || [];
   localState.notifications.push({ id: 'invite-local-' + Date.now(), text: `You received ${INVITED_AMOUNT} coins for joining via a referral (local only).`, time: Date.now(), read: false });
   updateDisplay();
@@ -649,7 +674,7 @@ function demoBuy(){ if(localState.coins < 10) { showToast('Need at least 10 coin
   // ensure remote record exists (auto-create) and merge remote into local
   await ensureRemoteUser();
 
-  // try to accept invite if ?ref=inviterId (workerProcessInvite will handle)
+  // try to accept invite if opened via Telegram start_param or ?ref=...  (workerProcessInvite will handle)
   await tryAcceptInviteFromUrl();
 
   // initial remote sync (inviter sees remote state)
@@ -667,14 +692,6 @@ function demoBuy(){ if(localState.coins < 10) { showToast('Need at least 10 coin
   // periodic UI refresh
   setInterval(updateDisplay, 3000);
 
-  // Show both invite link types in UI
-  inviteLinkEl.value = buildInviteUrl(profile.id) + '  (or deep link: ' + buildTelegramDeepLink(profile.id) + ')';
+  // Show invite link in UI (Telegram-friendly deep link)
+  inviteLinkEl.value = buildInviteUrl(profile.id);
 })();
-
-/* ======= Small CSS animations appended (kept) ======= */
-const styleExtra = document.createElement('style'); styleExtra.innerHTML = `
-.coin-sticker{ position:fixed; pointer-events:none; font-size:18px; transform-origin:center; z-index:1600; will-change: transform, opacity; }
-@keyframes float-wobble { 0%{ transform: translate3d(0px,0px,0) scale(1); opacity:1 } 100%{ transform: translate3d(0px,-180px,0) scale(0.92); opacity:0 } }
-.confetti{ position:fixed; width:10px;height:14px; opacity:1; pointer-events:none; z-index:1500; border-radius:2px }
-@keyframes confetti-fall{ 0%{ transform: translateY(0) rotate(0deg); opacity:1 } 100%{ transform: translateY(260px) rotate(720deg); opacity:0 } }
-`; document.head.appendChild(styleExtra);
