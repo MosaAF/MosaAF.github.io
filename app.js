@@ -1,4 +1,4 @@
-  /* ======= CONFIG (replace with your values if needed) ======= */
+/* ======= CONFIG (replace with your values if needed) ======= */
 const BIN_ID = "";
 const JSONBIN_KEY = "";
 const BOT_USERNAME = 'FaghaniCoin_bot';
@@ -32,7 +32,10 @@ const defaultState = {
   history: [],
   friends: [],
   pendingRewards: [],
-  notifications: []
+  notifications: [],
+
+  // new: lastActive timestamp (ms) saved to support offline earnings
+  lastActive: null
 };
 
 let localState = null;
@@ -67,15 +70,9 @@ let toastTimer = null;
 function showToast(message, {danger=false} = {}){ if(!toastEl) return; toastEl.textContent = message; toastEl.style.color = danger ? 'var(--danger)' : 'var(--accent1)'; toastEl.classList.add('show'); if(toastTimer) clearTimeout(toastTimer); toastTimer = setTimeout(()=> toastEl.classList.remove('show'), 3000); }
 
 /* ======= Worker-friendly helpers (per-user endpoints + fallbacks) ======= */
-
-/*
-  workerGetUser(id)
-  - tries GET `${WORKER_URL}user?id=<id>` (Worker should return { profile, state })
-  - fallback: fetch entire bin via fetchJsonBinLatest() and return remote.users[id] || null
-*/
+/* (unchanged; omitted here to keep this comment brief) */
 async function workerGetUser(id){
   if(!id) return null;
-  // try per-user endpoint first
   try{
     const url = `${WORKER_URL}user?id=${encodeURIComponent(id)}`;
     const res = await fetch(url, { method: 'GET' });
@@ -83,24 +80,15 @@ async function workerGetUser(id){
       const j = await res.json();
       return j;
     }
-  }catch(e){ /* continue to fallback */ }
-
-  // fallback: read full bin and return the user object
+  }catch(e){}
   try{
     const remote = await fetchJsonBinLatest();
     if(remote && remote.users && remote.users[id]) return remote.users[id];
   }catch(e){}
   return null;
 }
-
-/*
-  workerPutUser(id, userObj)
-  - tries PUT `${WORKER_URL}user?id=<id>` with body { profile, state }
-  - fallback: fetch full bin, set remote.users[id]=userObj, putJsonBin(remote)
-*/
 async function workerPutUser(id, userObj){
   if(!id || !userObj) return false;
-  // try per-user endpoint first
   try{
     const url = `${WORKER_URL}user?id=${encodeURIComponent(id)}`;
     const res = await fetch(url, {
@@ -109,9 +97,7 @@ async function workerPutUser(id, userObj){
       body: JSON.stringify(userObj)
     });
     if(res.ok) return true;
-  }catch(e){ /* fallback below */ }
-
-  // fallback: merge into full bin
+  }catch(e){}
   try{
     let remote = await fetchJsonBinLatest();
     if(!remote || typeof remote !== 'object') remote = { users: {} };
@@ -119,19 +105,9 @@ async function workerPutUser(id, userObj){
     remote.users[id] = userObj;
     const ok = await putJsonBin(remote);
     return ok;
-  }catch(e){
-    console.warn('workerPutUser fallback failed', e);
-    return false;
-  }
+  }catch(e){ console.warn('workerPutUser fallback failed', e); return false; }
 }
-
-/*
- workerProcessInvite(inviterId, invitedId, invitedName)
- - prefers dedicated worker endpoint: `${WORKER_URL}invite?ref=...&uid=...&name=...`
- - fallback: performs read/modify/write for inviter + invited via workerGetUser/workerPutUser
-*/
 async function workerProcessInvite(inviterId, invitedId, invitedName){
-  // prefer worker invite endpoint
   try{
     const url = `${WORKER_URL}invite?ref=${encodeURIComponent(inviterId)}&uid=${encodeURIComponent(invitedId)}&name=${encodeURIComponent(invitedName||'')}`;
     const res = await fetch(url, { method: 'GET' });
@@ -139,46 +115,31 @@ async function workerProcessInvite(inviterId, invitedId, invitedName){
       const j = await res.json();
       return { ok: true, result: j };
     }
-  }catch(e){
-    // continue to fallback
-  }
-
-  // fallback: perform read/modify/write client-side (still via per-user put/get or full-bin fallback)
+  }catch(e){}
   try{
-    // load invited
     let invitedRec = await workerGetUser(invitedId);
     if(!invitedRec) invitedRec = { profile: { id: invitedId, name: invitedName || invitedId }, state: JSON.parse(JSON.stringify(defaultState)) };
     invitedRec.profile = invitedRec.profile || { id: invitedId, name: invitedName || invitedId };
     invitedRec.state = invitedRec.state || JSON.parse(JSON.stringify(defaultState));
-
-    // credit invited if not already credited
     if(!invitedRec.state.joinedFrom){
       invitedRec.state.joinedFrom = inviterId;
       invitedRec.state.coins = (invitedRec.state.coins || 0) + INVITED_AMOUNT;
       invitedRec.state.notifications = invitedRec.state.notifications || [];
       invitedRec.state.notifications.push({ id: 'invited-' + Date.now(), text: `Congrats! You received ${INVITED_AMOUNT} coins for joining via a referral.`, time: Date.now(), read: false });
     }
-
-    // save invited
     await workerPutUser(invitedId, invitedRec);
-
-    // load inviter and add pending reward if needed
     let inviterRec = await workerGetUser(inviterId);
     if(!inviterRec) inviterRec = { profile: { id: inviterId, name: inviterId }, state: JSON.parse(JSON.stringify(defaultState)) };
     inviterRec.profile = inviterRec.profile || { id: inviterId, name: inviterId };
     inviterRec.state = inviterRec.state || JSON.parse(JSON.stringify(defaultState));
     inviterRec.state.pendingRewards = inviterRec.state.pendingRewards || [];
-
     const alreadyFriend = (inviterRec.state.friends || []).find(f => f.id === invitedId);
     const alreadyPending = inviterRec.state.pendingRewards.find(p => p.from === invitedId && !p.collected);
-
     if(!alreadyFriend && !alreadyPending){
       const pending = { id: 'pending-' + Date.now(), from: invitedId, amount: INVITER_PENDING_AMOUNT, message: `Your friend ${invitedRec.profile?.name || invitedId} joined — collect ${INVITER_PENDING_AMOUNT} coins!`, collected: false, time: Date.now() };
       inviterRec.state.pendingRewards.push(pending);
-      // save inviter
       await workerPutUser(inviterId, inviterRec);
     }
-
     return { ok: true, invited: invitedRec, inviter: inviterRec };
   }catch(err){
     console.error('workerProcessInvite fallback error', err);
@@ -187,9 +148,7 @@ async function workerProcessInvite(inviterId, invitedId, invitedName){
 }
 
 /* ======= JSONBin helpers (legacy full-bin read/write via Worker proxy) ======= */
-// fetch latest record via worker proxy or direct JSONBin if worker not available
 async function fetchJsonBinLatest(){
-  // prefer worker proxy endpoint that returns full bin
   if(WORKER_URL){
     try{
       const res = await fetch(`${WORKER_URL}jsonbin`, { method: 'GET' });
@@ -197,12 +156,8 @@ async function fetchJsonBinLatest(){
         const j = await res.json();
         return j.record || j || null;
       }
-    }catch(e){
-      console.warn('fetchJsonBinLatest via worker failed', e);
-    }
+    }catch(e){ console.warn('fetchJsonBinLatest via worker failed', e); }
   }
-
-  // fallback: direct JSONBin (requires JSONBIN_KEY/BIN_ID client-side which you don't want)
   if(!BIN_ID || !JSONBIN_KEY) return null;
   try{
     const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
@@ -214,9 +169,7 @@ async function fetchJsonBinLatest(){
     return j.record || null;
   }catch(err){ console.warn('JSONBin read failed', err); return null; }
 }
-
 async function putJsonBin(record){
-  // prefer worker proxy
   if(WORKER_URL){
     try{
       const res = await fetch(`${WORKER_URL}jsonbin`, {
@@ -225,12 +178,8 @@ async function putJsonBin(record){
         body: JSON.stringify(record)
       });
       return res.ok;
-    }catch(e){
-      console.warn('putJsonBin via worker failed', e);
-    }
+    }catch(e){ console.warn('putJsonBin via worker failed', e); }
   }
-
-  // fallback direct
   if(!BIN_ID || !JSONBIN_KEY) return false;
   try{
     const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
@@ -272,8 +221,8 @@ function ensureProfile(){
   profileInputEl.value = profile.name || '';
   profileNameEl.textContent = profile.name || 'Guest';
   inviteIdEl.textContent = profile.id;
-  // show Telegram-friendly invite link
-  inviteLinkEl.value = buildInviteUrl(profile.id);
+  // show Telegram-friendly invite link (we show both forms)
+  inviteLinkEl.value = buildInviteUrl(profile.id) + '  (or: ' + buildTelegramDeepLink(profile.id) + ')';
 }
 
 function updateProfileFromUI(){
@@ -283,63 +232,63 @@ function updateProfileFromUI(){
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   profileNameEl.textContent = profile.name;
   inviteIdEl.textContent = profile.id;
-  inviteLinkEl.value = buildInviteUrl(profile.id);
+  inviteLinkEl.value = buildInviteUrl(profile.id) + '  (or: ' + buildTelegramDeepLink(profile.id) + ')';
   showToast('Profile saved');
   if(localState){ localState.profileName = profile.name; saveLocalState(); updateDisplay(); }
 }
 
-// ===== Invite Friends button (Telegram share + fallbacks)
+/* ===== Invite Friends button (Telegram share + fallbacks) =====
+   - share message contains the "startapp" link (best chance to open web app)
+   - fallback uses t.me/<bot>?start=ref_<id> and tg://resolve
+*/
 (function setupInviteButton(){
   const btn = document.getElementById('invite-friends-btn');
   if(!btn) return;
-
   btn.addEventListener('click', (e) => {
     e.preventDefault();
 
-    // Build invite link (prefer existing helper)
-    const inviteLink = (typeof buildTelegramDeepLink === 'function') ? buildTelegramDeepLink(profile.id) : (location.origin + location.pathname + '?ref=' + encodeURIComponent(profile.id));
+    // prefer startapp link (opens the bot's webapp when possible)
+    const startappLink = `https://t.me/${BOT_USERNAME}/startapp?startapp=${encodeURIComponent(profile.id)}`;
+    const startDeep = `https://t.me/${BOT_USERNAME}?start=ref_${encodeURIComponent(profile.id)}`;
+    const tgResolve = `tg://resolve?domain=${BOT_USERNAME}&start=ref_${encodeURIComponent(profile.id)}`;
 
-    const shareText = `🎮 Join me in FaghaniCoin and get +500 coins! Play now: ${inviteLink}`;
+    const shareText = `🎮 Join me in FaghaniCoin and get +500 coins! Play now: ${startappLink}`;
 
-    // Telegram share URL (opens Telegram share/forward UI)
-    const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
-
-    const tgApp = window.Telegram?.WebApp;
+    // Telegram share URL that opens the forward UI and includes the startapp link in the message
+    const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(startappLink)}&text=${encodeURIComponent(shareText)}`;
 
     try {
-      // Prefer Telegram WebApp openLink APIs if available
-      if (tgApp && typeof tgApp.openTelegramLink === 'function') {
-        tgApp.openTelegramLink(tgShareUrl);
-        return;
-      } else if (tgApp && typeof tgApp.openLink === 'function') {
-        tgApp.openLink(tgShareUrl);
+      // if inside Telegram WebApp, try to open directly
+      if (tg && typeof tg.openLink === 'function') {
+        // open startapp link inside the app if possible
+        tg.openLink(startappLink);
         return;
       }
-
-      // On supporting browsers, use native share (mobile friendly) as an extra fallback
+      // native share on mobile
       if (navigator.share) {
-        navigator.share({ title: 'FaghaniCoin', text: shareText, url: inviteLink })
-          .catch(() => window.open(tgShareUrl, '_blank', 'noopener'));
+        navigator.share({ title: 'FaghaniCoin', text: shareText, url: startappLink }).catch(()=> {
+          window.open(tgShareUrl, '_blank', 'noopener');
+        });
         return;
       }
 
-      // Default fallback: open Telegram share URL (will open Telegram app on mobile)
+      // desktop/mobile fallback: open Telegram share URL (user will pick contacts)
       window.open(tgShareUrl, '_blank', 'noopener');
+
     } catch (err) {
-      // ultimate fallback
-      window.open(tgShareUrl, '_blank', 'noopener');
+      // last fallback: open tg://resolve (mobile)
+      try { window.open(tgResolve, '_blank', 'noopener'); } catch(e){ window.open(startDeep, '_blank', 'noopener'); }
     }
   });
 })();
 
-
-// Build invite link that opens inside Telegram bot (preferred)
+/* ===== builds: return startapp (preferred) and deep link (fallback) ===== */
 function buildInviteUrl(id){
-  // This link opens the web app inside Telegram (startapp). Works best when shared from outside Telegram.
+  // prefer opening web app directly (startapp) — recipients who open this from outside Telegram may see the WebApp open inside Bot.
   return `https://t.me/${BOT_USERNAME}/startapp?startapp=${encodeURIComponent(id)}`;
 }
-// fallback deep link (alternative form using /?start=ref_<id>)
 function buildTelegramDeepLink(id){
+  // fallback deep link that opens the bot /start; bot should handle forwarding to web app where applicable
   return `https://t.me/${BOT_USERNAME}?start=ref_${encodeURIComponent(id)}`;
 }
 function copyInvite(){ inviteLinkEl.select(); try{ document.execCommand('copy'); showToast('Invite link copied'); }catch(e){ showToast('Copy failed — select and copy manually', {danger:true}); } }
@@ -352,15 +301,12 @@ function saveLocalState(){
   if(WORKER_URL){
     (async ()=>{
       try{
-        // build user object
         const userObj = {
           profile: { id: profile.id, name: profile.name, username: profile.username || null, isTelegram: !!profile.isTelegram },
           state: toSave
         };
         await workerPutUser(profile.id, userObj);
-      }catch(e){
-        console.warn('saveLocalState workerPutUser failed', e);
-      }
+      }catch(e){ console.warn('saveLocalState workerPutUser failed', e); }
     })();
   }
 }
@@ -399,6 +345,10 @@ async function ensureRemoteUser(){
     if(remoteUser && remoteUser.state){
       // merge remote into local
       localState = mergeWithDefault(remoteUser.state, localState);
+      // If remote has lastActive and it's newer, keep it; otherwise local will be used
+      if(remoteUser.state.lastActive && (!localState.lastActive || remoteUser.state.lastActive > localState.lastActive)){
+        localState.lastActive = remoteUser.state.lastActive;
+      }
       localState.profileName = profile.name;
       saveLocalState();
       updateDisplay();
@@ -406,10 +356,78 @@ async function ensureRemoteUser(){
     }
     // create remote user
     const userObj = { profile: { id: profile.id, name: profile.name, username: profile.username || null, isTelegram: !!profile.isTelegram }, state: localState || JSON.parse(JSON.stringify(defaultState)) };
+    // ensure we have a lastActive
+    userObj.state.lastActive = userObj.state.lastActive || Date.now();
     await workerPutUser(profile.id, userObj);
-  }catch(e){
-    console.warn('ensureRemoteUser failed', e);
+  }catch(e){ console.warn('ensureRemoteUser failed', e); }
+}
+
+/* ======= Offline earnings: apply earnings for time away (cap 3 hours) =======
+   - Reads localState.lastActive ms
+   - Computes elapsed seconds, caps at 3*3600
+   - Adds profitPerHour * (elapsed/3600) to coins
+   - Updates history and lastActive
+*/
+function applyOfflineEarnings(){
+  if(!localState) return;
+  const now = Date.now();
+  const last = localState.lastActive || localState.lastSeen || 0;
+  if(!last || last <= 0){
+    // set baseline lastActive
+    localState.lastActive = now;
+    saveLocalState();
+    return;
   }
+  const elapsedSec = Math.floor((now - last)/1000);
+  if(elapsedSec < 5) { // too short to credit
+    localState.lastActive = now;
+    saveLocalState();
+    return;
+  }
+  const capSeconds = 3 * 3600; // 3 hours
+  const creditSeconds = Math.min(elapsedSec, capSeconds);
+  const profitPerHour = (localState.profitPerHour || 0);
+  if(profitPerHour > 0 && creditSeconds > 0){
+    const earned = profitPerHour * (creditSeconds / 3600);
+    if(earned > 0){
+      localState.coins = +( (localState.coins || 0) + earned ).toFixed(8);
+      localState.history = localState.history || [];
+      localState.history.push(`Offline +${fmt(earned)} coins (${Math.round(creditSeconds/60)} min)`);
+      showToast(`You earned ${fmt(earned)} coins while away (${Math.round(creditSeconds/60)} min).`);
+    }
+  }
+  // update lastActive to now
+  localState.lastActive = now;
+  saveLocalState();
+  updateDisplay();
+}
+
+/* keep lastActive updated on hide/unload so next time we can calculate offline time */
+function wireLastActiveHandlers(){
+  try{
+    document.addEventListener('visibilitychange', () => {
+      if(!localState) return;
+      if(document.visibilityState === 'hidden'){
+        localState.lastActive = Date.now();
+        // best-effort save
+        try{ saveLocalState(); }catch(e){}
+      } else if(document.visibilityState === 'visible'){
+        // when visible again, apply offline earnings immediately
+        applyOfflineEarnings();
+      }
+    });
+    window.addEventListener('beforeunload', () => {
+      if(!localState) return;
+      localState.lastActive = Date.now();
+      try{ saveLocalState(); }catch(e){}
+    });
+    // periodic heartbeat: save lastActive periodically so other devices have fresh value (once a minute)
+    setInterval(()=>{
+      if(!localState) return;
+      localState.lastActive = Date.now();
+      try{ saveLocalState(); }catch(e){}
+    }, 60000);
+  }catch(e){ console.warn('wireLastActiveHandlers error', e); }
 }
 
 /* ======= Sync remote (inviter) state into local (if configured) ======= */
@@ -518,9 +536,11 @@ function updateDisplay(){
   saveLocalState();
 }
 
-function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+/* ======= Purchases, tasks, invite logic, collect pending, periodic sync, visuals, etc. =======
+   (kept from your code - unchanged except where offline/lastActive touches state)
+*/
 
-/* ======= Purchases (kept) ======= */
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function onBuyClick(e){ const key = e.currentTarget.dataset.card; buyCard(key, e.currentTarget.closest('.upgrade-card')); }
 function buyCard(key, cardDom=null){
   const fc = localState.friendCards[key];
@@ -548,48 +568,31 @@ function buyCard(key, cardDom=null){
 }
 function animateBuyCard(cardEl){ if(!cardEl) return; try{ cardEl.animate([{ transform: 'scale(1)' },{ transform:'scale(1.06)' },{ transform:'scale(1)' }],{ duration:520, easing:'cubic-bezier(.2,.9,.2,1)' }); }catch(e){} const r = cardEl.getBoundingClientRect(); spawnConfetti(r.left + r.width/2, r.top + r.height/2, 14); }
 
-/* ======= Tasks (kept) ======= */
 function claimDailyReward(){ const today = new Date().toISOString().slice(0,10); if(localState.dailyClaimDate === today){ showToast('Daily already claimed today', {danger:true}); return; } localState.coins += 500; localState.dailyClaimDate = today; localState.history.push(`Daily reward +500 (${today})`); updateDisplay(); showToast('Daily reward +500'); const btn = document.getElementById('daily-btn'); if(btn) spawnConfetti(btn.getBoundingClientRect().left + btn.offsetWidth/2, btn.getBoundingClientRect().top + btn.offsetHeight/2, 20); }
 function watchVideoTask(){ if(localState.videoClaimed){ showToast('Video already claimed', {danger:true}); return; } window.open('https://youtu.be/ayF6zkVS1Ew?si=5YK04Buaaxusfxx-', '_blank', 'noopener'); localState.coins += 500; localState.videoClaimed = true; localState.history.push('Watched video +500'); updateDisplay(); showToast('Thanks for watching! +500'); const btn = document.getElementById('video-btn'); if(btn) spawnConfetti(btn.getBoundingClientRect().left + btn.offsetWidth/2, btn.getBoundingClientRect().top + btn.offsetHeight/2, 20); }
 
-/* ======= Invite acceptance logic (now uses workerProcessInvite) ======= */
 async function tryAcceptInviteFromUrl(){
-  // Support multiple ways of passing the inviter:
-  // 1) Telegram WebApp start_param (preferred when opened inside Telegram)
-  // 2) URL ?ref=...
-  // 3) URL ?start=ref_<id>
+  // Support telegram start_param and URL params ?ref and ?start=ref_...
   let inviterId = null;
-
-  // 1) telegram start_param
-  try{
-    inviterId = tg?.initDataUnsafe?.start_param || null;
-  }catch(e){ inviterId = inviterId || null; }
-
-  // 2) fallback to URL parameters
+  try{ inviterId = tg?.initDataUnsafe?.start_param || null; }catch(e){ inviterId = inviterId || null; }
   if(!inviterId){
     const params = new URLSearchParams(location.search);
     inviterId = (params.get('ref') || params.get('start') || '').trim();
     if(inviterId && inviterId.startsWith('ref_')) inviterId = inviterId.slice(4);
     if(!inviterId) inviterId = null;
   }
-
   if(!inviterId) return;
   const inviter = inviterId;
-
   if(inviter === profile.id){ showToast('You opened your own invite link — no action.'); return; }
   if(profile.joinedFrom && profile.joinedFrom === inviter){ showToast('Invite previously accepted', {danger:false}); return; }
-
   profile.joinedFrom = inviter;
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-
   if(WORKER_URL){
     showToast('Processing invite — contacting backend...');
     try{
       const res = await workerProcessInvite(inviter, profile.id, profile.name);
       if(res && res.ok){
-        // Worker invite endpoint returns structure under result or invited/inviter depending on implementation
-        const invitedData = res.result?.invited || res.result?.invited || res.invited || res.result?.user || null;
-        // fallback: res.result may be wrapper; use res.invited as fallback
+        const invitedData = res.result?.invited || res.invited || res.result?.user || res.invited;
         const invitedState = invitedData && (invitedData.state || invitedData);
         if(invitedState){
           localState = mergeWithDefault(invitedState.state || invitedState, localState);
@@ -608,8 +611,6 @@ async function tryAcceptInviteFromUrl(){
     }
     return;
   }
-
-  // no worker: local-only
   profile.joinedFrom = inviter;
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   localState.coins = (localState.coins || 0) + INVITED_AMOUNT;
@@ -621,7 +622,6 @@ async function tryAcceptInviteFromUrl(){
   showToast('Invite accepted locally (backend not configured).');
 }
 
-/* ======= Collect pending reward (inviter collects) ======= */
 async function collectPendingReward(pendingId){
   showToast('Collecting reward...');
   if(!WORKER_URL){
@@ -638,14 +638,11 @@ async function collectPendingReward(pendingId){
     showToast(`Collected ${pend.amount} coins — thank you!`);
     return;
   }
-
   try{
-    // Try to update inviter record using per-user endpoint
     const meRemote = await workerGetUser(profile.id);
     if(!meRemote || !meRemote.state){ showToast('Your remote state missing', {danger:true}); return; }
     const pend = (meRemote.state.pendingRewards || []).find(p => p.id === pendingId && !p.collected);
     if(!pend){ showToast('Pending reward not found on backend', {danger:true}); return; }
-
     meRemote.state.coins = (meRemote.state.coins || 0) + (pend.amount || 0);
     meRemote.state.friends = meRemote.state.friends || [];
     const already = meRemote.state.friends.find(f => f.id === pend.from);
@@ -656,7 +653,6 @@ async function collectPendingReward(pendingId){
     if(pRemote) pRemote.collected = true;
     meRemote.state.notifications = meRemote.state.notifications || [];
     meRemote.state.notifications.push({ id: 'collected-' + Date.now(), text: `You collected ${pend.amount} coins for inviting a friend!`, time: Date.now(), read: false });
-
     const ok = await workerPutUser(profile.id, meRemote);
     if(ok){
       showToast('Collected! +'+pend.amount);
@@ -670,7 +666,6 @@ async function collectPendingReward(pendingId){
   }
 }
 
-/* ======= Periodic remote sync (kept) ======= */
 async function periodicRemoteSync(){
   if(!WORKER_URL) return;
   try{
@@ -684,11 +679,23 @@ async function periodicRemoteSync(){
   }catch(e){ console.warn('sync error', e); }
 }
 
-/* ======= Earn coins, intervals, visuals (kept) ======= */
 function earnCoin(){ if(localState.limitCounter <= 0){ showToast('Limit reached — wait for regen', {danger:true}); return; } const gain = Math.min(localState.coinsPerClick, localState.limitCounter); localState.coins = +(localState.coins + gain).toFixed(6); localState.limitCounter = Math.max(0, localState.limitCounter - gain); localState.history.push(`Clicked +${gain}`); updateDisplay(); const {x,y} = bigCenter(); const spawnCount = Math.max(1, Math.round(Math.abs(gain))); spawnCoinStickers(x, y, spawnCount); faghaniEl.classList.add('pop'); setTimeout(()=> faghaniEl.classList.remove('pop'), 260); }
-function startIntervals(){ setInterval(()=>{ const cps = localState.profitPerHour / 3600; if(cps > 0){ localState.coins = +(localState.coins + cps).toFixed(8); updateDisplay(); } }, 1000); setInterval(()=>{ if(localState.limitCounter < localState.coinLimit){ localState.limitCounter = Math.min(localState.coinLimit, localState.limitCounter + 1); updateDisplay(); } }, 5000); }
 
-/* visuals */
+/* startIntervals no longer immediately called at top of init — we call it after offline earnings are applied */
+function startIntervals(){
+  setInterval(()=>{
+    const cps = localState.profitPerHour / 3600;
+    if(cps > 0){ localState.coins = +(localState.coins + cps).toFixed(8); updateDisplay(); }
+  }, 1000);
+  setInterval(()=>{
+    if(localState.limitCounter < localState.coinLimit){
+      localState.limitCounter = Math.min(localState.coinLimit, localState.limitCounter + 1);
+      updateDisplay();
+    }
+  }, 5000);
+}
+
+/* visuals helpers (kept) */
 function bigCenter(){ const r = faghaniEl.getBoundingClientRect(); return { x: r.left + r.width/2, y: r.top + r.height/2 }; }
 function spawnCoinStickers(x,y,count=1){ const max = Math.min(18, count); for(let i=0;i<max;i++){ const el = document.createElement('div'); el.className = 'coin-sticker'; el.textContent = '💰'; document.body.appendChild(el); const spread = (i - (max-1)/2) * 10 + (Math.random()*6 - 3); el.style.left = (x + spread) + 'px'; el.style.top = (y + (Math.random()*8 - 4)) + 'px'; el.style.opacity = '1'; el.style.transform = `translate(-50%,-50%) scale(${1 - Math.random()*0.12})`; const duration = 1100 + Math.random()*700; const delay = Math.random()*90; el.style.animation = `float-wobble ${duration}ms cubic-bezier(.2,.9,.2,1) ${delay}ms forwards`; el.style.rotate = (Math.random()*40 - 20) + 'deg'; setTimeout(()=> { try{ el.remove(); }catch(e){} }, duration + delay + 40); } }
 function spawnConfetti(x,y,amount=12){ const colors = ['#7ef2d2','#7b6bff','#ffd166','#ff6b6b','#6be6ff']; for(let i=0;i<amount;i++){ const c = document.createElement('div'); c.className = 'confetti'; c.style.left = (x + (Math.random()*120 - 60)) + 'px'; c.style.top = (y + (Math.random()*30 - 10)) + 'px'; c.style.background = colors[Math.floor(Math.random()*colors.length)]; c.style.width = (6 + Math.random()*8) + 'px'; c.style.height = (8 + Math.random()*10) + 'px'; document.body.appendChild(c); const duration = 800 + Math.random()*700; c.style.animation = `confetti-fall ${duration}ms cubic-bezier(.2,.9,.2,1) forwards`; setTimeout(()=> { try{ c.remove(); } catch(e){} }, duration + 40); } }
@@ -709,15 +716,23 @@ faghaniEl.addEventListener('click', ()=> earnCoin());
 /* ======= Demo buy (kept) ======= */
 function demoBuy(){ if(localState.coins < 10) { showToast('Need at least 10 coins to waste!', {danger:true}); return; } localState.coins = Math.max(0, localState.coins - 10); localState.history.push('Wasted 10 coins'); updateDisplay(); showToast('Wasted 10 coins'); }
 
-/* ======= Init ======= */
+/* ======= Init (re-ordered to apply offline earnings after merging remote state) ======= */
 (async ()=>{
   ensureProfile();
   await loadState();
   updateDisplay();
+
+  // create or fetch remote user and merge remote -> local
+  await ensureRemoteUser();
+
+  // apply offline earnings (cap at 3 hours)
+  applyOfflineEarnings();
+
+  // now start intervals for live passive income and limit regen
   startIntervals();
 
-  // ensure remote record exists (auto-create) and merge remote into local
-  await ensureRemoteUser();
+  // wire lastActive handlers to keep timestamp updated
+  wireLastActiveHandlers();
 
   // try to accept invite if opened via Telegram start_param or ?ref=...  (workerProcessInvite will handle)
   await tryAcceptInviteFromUrl();
@@ -738,5 +753,5 @@ function demoBuy(){ if(localState.coins < 10) { showToast('Need at least 10 coin
   setInterval(updateDisplay, 3000);
 
   // Show invite link in UI (Telegram-friendly deep link)
-  inviteLinkEl.value = buildInviteUrl(profile.id);
+  inviteLinkEl.value = buildInviteUrl(profile.id) + '  (or: ' + buildTelegramDeepLink(profile.id) + ')';
 })();
