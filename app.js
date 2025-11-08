@@ -1,4 +1,4 @@
- /* ======= CONFIG (replace with your values if needed) ======= */
+/* ======= CONFIG (replace with your values if needed) ======= */
 const BIN_ID = "";
 const JSONBIN_KEY = "";
 const BOT_USERNAME = 'FaghaniCoin_bot';
@@ -237,10 +237,6 @@ function updateProfileFromUI(){
   if(localState){ localState.profileName = profile.name; saveLocalState(); updateDisplay(); }
 }
 
-/* ===== Invite Friends button (Telegram share + fallbacks) =====
-   - share message contains the "startapp" link (best chance to open web app)
-   - fallback uses t.me/<bot>?start=ref_<id> and tg://resolve
-*/
 /* ===== Invite Friends button (robust) ===== */
 (function setupInviteButton(){
   const btn = document.getElementById('invite-friends-btn');
@@ -263,15 +259,15 @@ function updateProfileFromUI(){
     try {
       // If inside Telegram WebApp: try to open link via the WebApp API (opens inside Telegram)
       if (window.Telegram && window.Telegram.WebApp) {
-        const tg = window.Telegram.WebApp;
+        const tgLocal = window.Telegram.WebApp;
         // prefer openLink (supported in many clients)
-        if (typeof tg.openLink === 'function') {
-          tg.openLink(startappLink);
+        if (typeof tgLocal.openLink === 'function') {
+          tgLocal.openLink(startappLink);
           return;
         }
         // some environments expose openTelegramLink
-        if (typeof tg.openTelegramLink === 'function') {
-          tg.openTelegramLink(startappLink);
+        if (typeof tgLocal.openTelegramLink === 'function') {
+          tgLocal.openTelegramLink(startappLink);
           return;
         }
       }
@@ -288,13 +284,12 @@ function updateProfileFromUI(){
 
       // If popups blocked, user still can copy the link and send it manually.
     } catch (err) {
-      // final fallback: try tg://resolve (mobile Telegram)
+      // final fallback: try tg://resolve (mobile)
       try { window.open(tgResolve, '_blank', 'noopener'); }
       catch(e){ window.open(startDeep, '_blank', 'noopener'); }
     }
   });
 })();
-
 
 /* ===== builds: return startapp (preferred) and deep link (fallback) ===== */
 function buildInviteUrl(id){
@@ -305,7 +300,18 @@ function buildTelegramDeepLink(id){
   // fallback deep link that opens the bot /start; bot should handle forwarding to web app where applicable
   return `https://t.me/${BOT_USERNAME}?start=ref_${encodeURIComponent(id)}`;
 }
-function copyInvite(){ inviteLinkEl.select(); try{ document.execCommand('copy'); showToast('Invite link copied'); }catch(e){ showToast('Copy failed — select and copy manually', {danger:true}); } }
+function copyInvite(){ 
+  // try modern clipboard first
+  const toCopy = buildInviteUrl(profile.id);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(toCopy).then(()=> showToast('Invite link copied')).catch(()=> fallbackCopy());
+  } else fallbackCopy();
+
+  function fallbackCopy(){
+    inviteLinkEl.select();
+    try{ document.execCommand('copy'); showToast('Invite link copied'); }catch(e){ showToast('Copy failed — select and copy manually', {danger:true}); }
+  }
+}
 
 /* ======= Local state save/load (now uses per-user put if possible) ======= */
 function saveLocalState(){
@@ -586,27 +592,39 @@ function claimDailyReward(){ const today = new Date().toISOString().slice(0,10);
 function watchVideoTask(){ if(localState.videoClaimed){ showToast('Video already claimed', {danger:true}); return; } window.open('https://youtu.be/ayF6zkVS1Ew?si=5YK04Buaaxusfxx-', '_blank', 'noopener'); localState.coins += 500; localState.videoClaimed = true; localState.history.push('Watched video +500'); updateDisplay(); showToast('Thanks for watching! +500'); const btn = document.getElementById('video-btn'); if(btn) spawnConfetti(btn.getBoundingClientRect().left + btn.offsetWidth/2, btn.getBoundingClientRect().top + btn.offsetHeight/2, 20); }
 
 async function tryAcceptInviteFromUrl(){
-  // Support telegram start_param and URL params ?ref and ?start=ref_...
+  // Support telegram start_param and URL params ?ref and ?start=ref_... and ?startapp=...
   let inviterId = null;
-  try{ inviterId = tg?.initDataUnsafe?.start_param || null; }catch(e){ inviterId = inviterId || null; }
+
+  // 1) Prefer Telegram WebApp start_param when inside Telegram:
+  try{
+    inviterId = tg?.initDataUnsafe?.start_param || null;
+  }catch(e){ inviterId = inviterId || null; }
+
+  // 2) If not present, check URL query parameters that may be present:
   if(!inviterId){
     const params = new URLSearchParams(location.search);
-    inviterId = (params.get('ref') || params.get('start') || '').trim();
+    inviterId = (params.get('startapp') || params.get('ref') || params.get('start') || '').trim();
+    // handle start=ref_abc case
     if(inviterId && inviterId.startsWith('ref_')) inviterId = inviterId.slice(4);
     if(!inviterId) inviterId = null;
   }
+
   if(!inviterId) return;
   const inviter = inviterId;
+
   if(inviter === profile.id){ showToast('You opened your own invite link — no action.'); return; }
   if(profile.joinedFrom && profile.joinedFrom === inviter){ showToast('Invite previously accepted', {danger:false}); return; }
+
   profile.joinedFrom = inviter;
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+
   if(WORKER_URL){
     showToast('Processing invite — contacting backend...');
     try{
       const res = await workerProcessInvite(inviter, profile.id, profile.name);
       if(res && res.ok){
-        const invitedData = res.result?.invited || res.invited || res.result?.user || res.invited;
+        // worker may return invited under different keys; handle both shapes
+        const invitedData = res.result?.invited || res.invited || res.result?.user || res.result || null;
         const invitedState = invitedData && (invitedData.state || invitedData);
         if(invitedState){
           localState = mergeWithDefault(invitedState.state || invitedState, localState);
@@ -625,6 +643,8 @@ async function tryAcceptInviteFromUrl(){
     }
     return;
   }
+
+  // fallback: local-only acceptance
   profile.joinedFrom = inviter;
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
   localState.coins = (localState.coins || 0) + INVITED_AMOUNT;
