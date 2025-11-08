@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>FaghaniCoin</title>
-  <link rel="stylesheet" href="style.css">
+<title>FaghaniCoin — Invite-only Friends</title>
+<link rel="stylesheet" href="style.css">
 <script src="https://kit.fontawesome.com/ee47db218d.js" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -116,12 +116,12 @@
         </div>
       </div>
 
-      <!-- FRIENDS (invite-only) -->
+      <!-- FRIENDS-->
       <div id="friends" class="section" role="region" aria-label="Friends section">
         <div class="grid">
           <section class="panel">
-            <h3>Friends (invite-only)</h3>
-            <p style="margin-top:8px;color:var(--muted)">Invite friends and get free coins.</p>
+            <h3>Friends</h3>
+            <p style="margin-top:8px;color:var(--muted)">Friends are created only when someone opens the game using your invite link.</p>
 
             <div style="margin-top:10px;margin-bottom:8px">
               <label class="small">Profile name</label><br/>
@@ -141,9 +141,14 @@
             <div style="display:flex;gap:8px;align-items:center">
               <input id="invite-link" readonly style="flex:1" />
               <button class="btn" onclick="copyInvite()">Copy</button>
+              <!-- NEW Invite button (styled like others) -->
+              <button id="invite-friends-btn" class="btn" aria-label="Invite friends via Telegram" title="Invite friends">
+                <i class="fa-solid fa-user-plus" style="margin-right:8px"></i>
+                Invite
+              </button>
             </div>
             <div style="margin-top:10px" class="small">Your id: <code id="invite-id" style="padding:6px;border-radius:6px;background:rgba(255,255,255,0.02);font-family:ui-monospace,monospace"></code></div>
-            <div style="margin-top:12px;color:var(--muted);font-size:0.85rem">Important: for cross-device crediting you must configure a backend (JSONBin). See top of the script.</div>
+            <div style="margin-top:12px;color:var(--muted);font-size:0.85rem">...</div>
           </section>
 
           <section class="panel center-col">
@@ -159,10 +164,11 @@
           </section>
 
           <section class="panel">
-            <h3>Leaderboard</h3>
+            <h3>LeaderBoard</h3>
             <p style="margin-top:8px;color:var(--muted)"></p>
             <p style="margin-top:8px;color:var(--muted)">Invite more friends to be the one has invited more friends globally.
-              <em>This section is inactive now.</em></p>
+              <em>This section is inactive now.</em>
+            </p>
           </section>
         </div>
       </div>
@@ -174,8 +180,5 @@
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="app.js"></script>
-  
 </body>
 </html>
-
-
